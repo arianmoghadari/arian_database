@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: arad-billboards-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: arad_billboards
+      MYSQL_USER: arad_user
+      MYSQL_PASSWORD: arad_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    networks:
+      - arad-network
+
+  # Redis (for future caching)
+  redis:
+    image: redis:7-alpine
+    container_name: arad-billboards-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - arad-network
+
+  # Node.js Application
+  app:
+    build: .
+    container_name: arad-billboards-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=arad_billboards
+      - DB_USER=arad_user
+      - DB_PASSWORD=arad_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ./uploads:/app/public/uploads
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - arad-network
+
+  # Nginx (for production)
+  nginx:
+    image: nginx:alpine
+    container_name: arad-billboards-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/ssl:/etc/nginx/ssl
+      - ./uploads:/var/www/uploads
+    depends_on:
+      - app
+    networks:
+      - arad-network
+    profiles:
+      - production
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  arad-network:
+    driver: bridge

@@ -1,0 +1,995 @@
+openapi: 3.0.3
+info:
+  title: Arad Billboards API
+  description: Complete API for Arad Billboards management system
+  version: 1.0.0
+  contact:
+    name: Arad Billboards Team
+    email: support@arad.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+  - url: https://api.arad.com/api
+    description: Production server
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fullName
+                - email
+                - password
+              properties:
+                fullName:
+                  type: string
+                  example: "کاربر تست"
+                email:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+                password:
+                  type: string
+                  minLength: 6
+                  example: "password123"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "admin@arad.com"
+                password:
+                  type: string
+                  example: "admin123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user info
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /cities:
+    get:
+      tags:
+        - Cities
+      summary: Get all cities
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of cities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/City'
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  total:
+                    type: integer
+
+    post:
+      tags:
+        - Cities
+      summary: Create new city (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CityInput'
+      responses:
+        '201':
+          description: City created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/City'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /cities/{id}:
+    get:
+      tags:
+        - Cities
+      summary: Get city by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: City details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/City'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - Cities
+      summary: Update city (Admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CityInput'
+      responses:
+        '200':
+          description: City updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/City'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    delete:
+      tags:
+        - Cities
+      summary: Delete city (Admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: City deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /billboards:
+    get:
+      tags:
+        - Billboards
+      summary: Get all billboards with filtering
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in title, code, position, region
+        - name: labels
+          in: query
+          schema:
+            type: string
+          description: Comma-separated labels (reserved,available,inactive,broadcasting,cultural)
+        - name: ownership
+          in: query
+          schema:
+            type: string
+          description: Partner name
+        - name: city
+          in: query
+          schema:
+            type: string
+          description: City name
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of billboards
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Billboard'
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  total:
+                    type: integer
+
+    post:
+      tags:
+        - Billboards
+      summary: Create new billboard (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillboardInput'
+      responses:
+        '201':
+          description: Billboard created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Billboard'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /billboards/{id}:
+    get:
+      tags:
+        - Billboards
+      summary: Get billboard by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Billboard details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Billboard'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /reservations:
+    get:
+      tags:
+        - Reservations
+      summary: Get user reservations
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled, expired]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of reservations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Reservation'
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  total:
+                    type: integer
+
+    post:
+      tags:
+        - Reservations
+      summary: Create new reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservationInput'
+      responses:
+        '201':
+          description: Reservation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /orders:
+    post:
+      tags:
+        - Orders
+      summary: Create new order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderInput'
+      responses:
+        '201':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /orders/{id}:
+    get:
+      tags:
+        - Orders
+      summary: Get order by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /admin/stats:
+    get:
+      tags:
+        - Admin
+      summary: Get dashboard statistics (Admin only)
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStats'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /admin/health:
+    get:
+      tags:
+        - Admin
+      summary: System health check (Admin only)
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  database:
+                    type: string
+                    example: "connected"
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: System is unhealthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "unhealthy"
+                  database:
+                    type: string
+                    example: "disconnected"
+                  error:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, user]
+        status:
+          type: string
+          enum: [active, disabled]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    City:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CityInput:
+      type: object
+      required:
+        - name
+        - slug
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        slug:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+        status:
+          type: string
+          enum: [active, inactive]
+          default: active
+
+    Partner:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        contactInfo:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Billboard:
+      type: object
+      properties:
+        id:
+          type: integer
+        billboardCode:
+          type: string
+        title:
+          type: string
+        length:
+          type: number
+          format: float
+        width:
+          type: number
+          format: float
+        squareMeter:
+          type: number
+          format: float
+        position:
+          type: string
+        region:
+          type: string
+        priceNumber:
+          type: number
+          format: float
+        isReserved:
+          type: boolean
+        isEmpty:
+          type: boolean
+        isInactive:
+          type: boolean
+        isBroadcasting:
+          type: boolean
+        isCultural:
+          type: boolean
+        imageUrl:
+          type: string
+        cityId:
+          type: integer
+        partnerId:
+          type: integer
+        City:
+          $ref: '#/components/schemas/City'
+        Partner:
+          $ref: '#/components/schemas/Partner'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    BillboardInput:
+      type: object
+      required:
+        - billboardCode
+        - cityId
+      properties:
+        billboardCode:
+          type: string
+          minLength: 1
+          maxLength: 50
+        title:
+          type: string
+          maxLength: 200
+        length:
+          type: number
+          format: float
+          minimum: 0
+        width:
+          type: number
+          format: float
+          minimum: 0
+        squareMeter:
+          type: number
+          format: float
+          minimum: 0
+        position:
+          type: string
+          maxLength: 200
+        region:
+          type: string
+          maxLength: 200
+        priceNumber:
+          type: number
+          format: float
+          minimum: 0
+        cityId:
+          type: integer
+          minimum: 1
+        partnerId:
+          type: integer
+          minimum: 1
+        isReserved:
+          type: boolean
+        isEmpty:
+          type: boolean
+        isInactive:
+          type: boolean
+        isBroadcasting:
+          type: boolean
+        isCultural:
+          type: boolean
+        imageUrl:
+          type: string
+          format: uri
+
+    Reservation:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, expired]
+        reservedFrom:
+          type: string
+          format: date-time
+        reservedTo:
+          type: string
+          format: date-time
+        notes:
+          type: string
+        billboardId:
+          type: integer
+        userId:
+          type: integer
+        Billboard:
+          $ref: '#/components/schemas/Billboard'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ReservationInput:
+      type: object
+      required:
+        - billboardId
+        - reservedFrom
+        - reservedTo
+      properties:
+        billboardId:
+          type: integer
+          minimum: 1
+        reservedFrom:
+          type: string
+          format: date-time
+        reservedTo:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          maxLength: 500
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [draft, submitted, paid, cancelled]
+        totalAmount:
+          type: number
+          format: float
+        currency:
+          type: string
+        userId:
+          type: integer
+        OrderItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        qty:
+          type: integer
+        unitPrice:
+          type: number
+          format: float
+        discountPercent:
+          type: number
+          format: float
+        orderId:
+          type: integer
+        billboardId:
+          type: integer
+        Billboard:
+          $ref: '#/components/schemas/Billboard'
+
+    OrderInput:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - billboardId
+              - qty
+            properties:
+              billboardId:
+                type: integer
+                minimum: 1
+              qty:
+                type: integer
+                minimum: 1
+              unitPrice:
+                type: number
+                format: float
+                minimum: 0
+              discountPercent:
+                type: number
+                format: float
+                minimum: 0
+                maximum: 100
+        currency:
+          type: string
+          default: USD
+
+    AdminStats:
+      type: object
+      properties:
+        users:
+          type: object
+          properties:
+            total:
+              type: integer
+        cities:
+          type: object
+          properties:
+            total:
+              type: integer
+        partners:
+          type: object
+          properties:
+            total:
+              type: integer
+        billboards:
+          type: object
+          properties:
+            total:
+              type: integer
+        productCards:
+          type: object
+          properties:
+            total:
+              type: integer
+        reservations:
+          type: object
+          properties:
+            total:
+              type: integer
+            active:
+              type: integer
+        orders:
+          type: object
+          properties:
+            total:
+              type: integer
+            pending:
+              type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+
+  responses:
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "VALIDATION_ERROR"
+              message: "Invalid input data"
+              details:
+                - field: "email"
+                  message: "Valid email required"
+
+    UnauthorizedError:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "UNAUTHORIZED"
+              message: "Authentication required"
+
+    ForbiddenError:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "FORBIDDEN"
+              message: "Insufficient permissions"
+
+    NotFoundError:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "NOT_FOUND"
+              message: "Resource not found"
+
+    ConflictError:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "CONFLICT"
+              message: "Resource already exists"
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Cities
+    description: City management
+  - name: Partners
+    description: Partner management
+  - name: Billboards
+    description: Billboard management
+  - name: Product Cards
+    description: Product card management
+  - name: Reservations
+    description: Reservation management
+  - name: Orders
+    description: Order management
+  - name: Admin
+    description: Admin panel operations
